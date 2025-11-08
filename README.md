@@ -81,7 +81,8 @@ python main.py
 You can add a screenshot of your keyboard UI here.
 
 ```
-![Virtual Keyboard Demo](demo.jpg)
+<img width="1292" height="744" alt="Screenshot 2025-11-08 at 10 04 24 PM" src="https://github.com/user-attachments/assets/4312ad4b-6d0c-47d9-a44a-fe91d68ffbf9" />
+
 ```
 
 ---
