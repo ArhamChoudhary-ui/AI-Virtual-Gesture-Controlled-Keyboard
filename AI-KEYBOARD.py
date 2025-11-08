@@ -10,8 +10,8 @@ time.sleep(1)
 
 detector = HandDetector(detectionCon=0.8, maxHands=1)
 keyboard = Controller()
-finalText = ""
 
+finalText = ""
 caps = False
 
 keys_layout = [
@@ -35,30 +35,31 @@ def create_buttons():
     global buttonList
     buttonList = []
 
-    screen_center = 640
-    y_start = 260
-    size = 85
+    size = 90
     gap = 12
+    screen_w = 1280
+    center = screen_w // 2
+    y_start = 250
 
-    for idx, row in enumerate(keys_layout):
-        row_width = len(row) * size + (len(row)-1) * gap
-        x_start = screen_center - row_width // 2
-        y = y_start + idx * (size + gap)
+    for row_index, row in enumerate(keys_layout):
+        row_width = len(row)*size + (len(row)-1)*gap
+        x_start = center - (row_width // 2)
+        y = y_start + row_index*(size + gap)
 
-        for j, key in enumerate(row):
-            x = x_start + j * (size + gap)
+        for i, key in enumerate(row):
+            x = x_start + i*(size + gap)
             buttonList.append(Button([x, y], key, (size, size)))
 
-    y = y_start + 3 * (size + gap) + 20
     special_sizes = {
-        "CAPS": size * 2,
-        "SPACE": size * 5,
-        "BACK": size * 2,
-        "CLEAR": size * 2,
+        "CAPS": size*2,
+        "SPACE": size*5,
+        "BACK": size*2,
+        "CLEAR": size*2,
     }
 
-    row_width = sum(special_sizes[k] for k in special_keys) + gap * (len(special_keys)-1)
-    x_start = screen_center - row_width // 2
+    y = y_start + 3*(size + gap) + 20
+    row_width = sum(special_sizes[k] for k in special_keys) + gap*(len(special_keys)-1)
+    x_start = center - row_width//2
     x = x_start
 
     for key in special_keys:
@@ -68,99 +69,101 @@ def create_buttons():
 
 create_buttons()
 
-def drawRoundedRectangle(img, pt1, pt2, color, radius=18):
-    x1, y1 = pt1
-    x2, y2 = pt2
+def drawRounded(img, pt1, pt2, color, radius=18):
+    x1,y1 = pt1
+    x2,y2 = pt2
     overlay = img.copy()
 
-    cv2.rectangle(overlay, (x1 + radius, y1), (x2 - radius, y2), color, -1)
-    cv2.rectangle(overlay, (x1, y1 + radius), (x2, y2 - radius), color, -1)
+    cv2.rectangle(overlay, (x1+radius,y1), (x2-radius,y2), color, -1)
+    cv2.rectangle(overlay, (x1,y1+radius), (x2,y2-radius), color, -1)
 
-    cv2.circle(overlay, (x1 + radius, y1 + radius), radius, color, -1)
-    cv2.circle(overlay, (x2 - radius, y1 + radius), radius, color, -1)
-    cv2.circle(overlay, (x1 + radius, y2 - radius), radius, color, -1)
-    cv2.circle(overlay, (x2 - radius, y2 - radius), radius, color, -1)
+    cv2.circle(overlay,(x1+radius,y1+radius),radius,color,-1)
+    cv2.circle(overlay,(x2-radius,y1+radius),radius,color,-1)
+    cv2.circle(overlay,(x1+radius,y2-radius),radius,color,-1)
+    cv2.circle(overlay,(x2-radius,y2-radius),radius,color,-1)
 
-    return cv2.addWeighted(overlay, 0.90, img, 0.10, 0)
+    return cv2.addWeighted(overlay, 0.92, img, 0.08, 0)
 
 def drawAll(img):
     for button in buttonList:
-        x, y = button.pos
-        w, h = button.size
+        x,y = button.pos
+        w,h = button.size
 
-        base = (55, 55, 55)
-        pressed = (150, 40, 200)
+        base = (70,70,70)
+        press_col = (180,40,200)
+        caps_col = (230,90,60)
 
-        if button.text == "CAPS" and caps:
-            color = (200, 80, 50)
+        if button.text=="CAPS" and caps:
+            color = caps_col
         else:
-            color = pressed if button.pressed else base
+            color = press_col if button.pressed else base
 
-        img = drawRoundedRectangle(img, (x, y), (x + w, y + h), color)
+        img = drawRounded(img, (x,y), (x+w,y+h), color)
 
-        text = button.text
-        tsize = cv2.getTextSize(text, cv2.FONT_HERSHEY_SIMPLEX, 0.8, 2)[0]
-        tx = x + (w - tsize[0]) // 2
-        ty = y + (h + tsize[1]) // 2
+        t = button.text
+        ts = cv2.getTextSize(t, cv2.FONT_HERSHEY_SIMPLEX, 0.8, 2)[0]
+        tx = x + (w - ts[0])//2
+        ty = y + (h + ts[1])//2
 
-        cv2.putText(img, text, (tx, ty),
-                    cv2.FONT_HERSHEY_SIMPLEX, 0.8,
-                    (255, 255, 255), 2)
+        cv2.putText(img, t, (tx,ty), cv2.FONT_HERSHEY_SIMPLEX, 0.8,
+                    (255,255,255), 2)
 
     return img
 
-lastPress = 0
-pressDelay = 0.30
+last_press = 0
+cooldown = 0.35
 
 while True:
-    ret, img = cap.read()
+    _, img = cap.read()
     img = cv2.flip(img, 1)
+
     hands, img = detector.findHands(img, flipType=False)
 
     if hands:
         lm = hands[0]["lmList"]
-        dist, _, _ = detector.findDistance(lm[4][:2], lm[8][:2], img)
-        pinch = dist < 40
+
+        pinch_dist, _, _ = detector.findDistance(lm[4][:2], lm[8][:2], img)
+        pinch = pinch_dist < 30
+        fingertip = lm[8]
 
         for button in buttonList:
-            x, y = button.pos
-            w, h = button.size
+            x,y = button.pos
+            w,h = button.size
 
-            if x < lm[8][0] < x + w and y < lm[8][1] < y + h:
-                if pinch and time.time() - lastPress > pressDelay:
-                    lastPress = time.time()
-                    button.pressed = True
+            inside = (x < fingertip[0] < x+w) and (y < fingertip[1] < y+h)
 
-                    if button.text == "CLEAR":
-                        finalText = ""
+            if inside and pinch and (time.time() - last_press > cooldown):
+                last_press = time.time()
+                button.pressed = True
 
-                    elif button.text == "BACK":
-                        finalText = finalText[:-1]
-
-                    elif button.text == "SPACE":
-                        finalText += " "
-                        keyboard.press(" ")
-
-                    elif button.text == "CAPS":
-                        caps = not caps
-
-                    else:
-                        char = button.text.upper() if caps else button.text.lower()
-                        finalText += char
-                        keyboard.press(char)
+                if button.text == "CLEAR":
+                    finalText = ""
+                elif button.text == "BACK":
+                    finalText = finalText[:-1]
+                elif button.text == "SPACE":
+                    finalText += " "
+                    keyboard.press(" ")
+                elif button.text == "CAPS":
+                    caps = not caps
+                else:
+                    char = button.text.upper() if caps else button.text.lower()
+                    finalText += char
+                    keyboard.press(char)
 
     img = drawAll(img)
 
-    cv2.rectangle(img, (60, 80), (1220, 160), (40, 40, 40), -1)
-    cv2.putText(img, finalText[-40:], (90, 140),
-                cv2.FONT_HERSHEY_SIMPLEX, 2, (255, 255, 255), 3)
+    cv2.rectangle(img, (60,80), (1220,160), (40,40,40), -1)
+    cv2.putText(img, finalText[-40:], (90,140),
+                cv2.FONT_HERSHEY_SIMPLEX, 2,
+                (255,255,255), 3)
 
-    cv2.putText(img, "Press Q to Quit", (50, 700),
-                cv2.FONT_HERSHEY_SIMPLEX, 0.8, (255, 255, 255), 2)
+    cv2.putText(img, "Pinch to type | Q to quit",
+                (50,700), cv2.FONT_HERSHEY_SIMPLEX, 0.8,
+                (255,255,255), 2)
 
-    cv2.imshow("AI Virtual Keyboard - Optimized", img)
+    cv2.imshow("AI Virtual Keyboard", img)
 
-    if cv2.waitKey(1) & 0xFF == ord("q"):
+    if cv2.waitKey(1) & 0xFF == ord('q'):
         break
 
     for b in buttonList:
